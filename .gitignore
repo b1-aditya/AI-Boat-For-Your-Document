@@ -1,0 +1,10 @@
+# Secret API keys aur local files ko GitHub par upload hone se bachane ke liye
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+chroma_db/
+faiss_index/
+temp_uploads/
+.streamlit/secrets.toml
