@@ -68,8 +68,12 @@ jobs:
             ${{ steps.meta.outputs.image }}:${{ github.sha }}
 
       - name: Trigger Render Deploy Hook
-        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-          echo "Render deployment triggered successfully!"
-
+          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
+            curl -fsSL -X POST "$RENDER_DEPLOY_HOOK_URL"
+            echo "Render deployment triggered successfully!"
+          else
+            echo "RENDER_DEPLOY_HOOK_URL secret is not set; skipping Render deploy hook."
+          fi
