@@ -1,0 +1,14 @@
+# Multilingual RAG Knowledge Base (Sample Starter Data)
+
+## 1. System Overview (English)
+This Multilingual Hybrid RAG (Retrieval-Augmented Generation) application supports PDF (up to 400 pages), DOCX, TXT, and JSON documents in English, Hindi, and Hinglish.
+It uses ChromaDB for persistent dense vector storage with Maximal Marginal Relevance (MMR), BM25 for exact keyword matching, Reciprocal Rank Fusion (RRF) for merging results, FlashRank (ms-marco-MultiBERT-L-12) for multilingual cross-encoder reranking, and Google Gemini (or Groq) for strictly grounded question answering.
+
+## 2. सिस्टम की मुख्य विशेषताएं (Hindi)
+यह RAG एप्लिकेशन अंग्रेजी, हिंदी और हिंग्लिश दस्तावेज़ों से सटीक उत्तर निकालने के लिए बनाई गई है।
+इसमें सभी अपलोड किए गए दस्तावेज़ ChromaDB डेटाबेस में स्थायी रूप से सेव होते हैं।
+हर उत्तर केवल दस्तावेज़ में मौजूद जानकारी के आधार पर दिया जाता है और साथ में स्रोत फ़ाइल व पेज नंबर दिखाया जाता है।
+
+## 3. Deployment aur Permanent Storage (Hinglish)
+Agar aap ChromaDB ko 24x7 permanently live rakhna chahte hain, to Streamlit Cloud ki local disk par bharosa mat karein kyunki Streamlit Cloud restart hone par local files reset ho jaati hain.
+Permanent storage ke liye ChromaDB ko Chroma Cloud (trychroma.com) par ya Docker ke saath Render/Railway/VPS par Persistent Volume ke saath deploy karein aur CHROMA_MODE=http ya CHROMA_MODE=cloud set karein.
