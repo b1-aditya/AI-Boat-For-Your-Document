@@ -1,0 +1,14 @@
+# Never bake secrets, local virtualenvs, or local DBs into the Docker image
+.git/
+.github/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+chroma_db/
+faiss_index/
+temp_uploads/
+.streamlit/secrets.toml
