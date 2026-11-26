@@ -10,8 +10,20 @@ and builds/updates two indexes for Hybrid RAG:
 import json
 import os
 import re
+import sys
+import threading
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+
+# On Linux (e.g. Streamlit Cloud), system sqlite3 can be older than ChromaDB requires.
+# Patch sqlite3 with pysqlite3 before importing chromadb when available.
+try:
+    import pysqlite3
+
+    sys.modules["sqlite3"] = pysqlite3
+except ImportError:
+    pass
 
 import chromadb
 import docx  # Reads .docx files (python-docx)
@@ -49,32 +61,63 @@ def tokenize_multilingual(text: str) -> List[str]:
     return re.findall(r"[\w\u0900-\u097F]+", text.lower())
 
 
+_CHROMA_CLIENT_LOCK = threading.Lock()
+
+
+@lru_cache(maxsize=4)
+def _cached_chroma_client(
+    mode: str,
+    target_dir: str,
+    host: str,
+    port: int,
+    ssl: bool,
+    api_key: str,
+    tenant: str,
+    database: str,
+):
+    """Create and cache a single ChromaDB client per configuration to avoid SharedSystemClient races."""
+    if mode == "http":
+        return chromadb.HttpClient(host=host, port=port, ssl=ssl)
+
+    if mode == "cloud":
+        return chromadb.CloudClient(
+            api_key=api_key,
+            tenant=tenant,
+            database=database,
+        )
+
+    os.makedirs(target_dir, exist_ok=True)
+    return chromadb.PersistentClient(path=target_dir)
+
+
 def get_chroma_client(persist_dir: str | None = None):
     """
-    Create a ChromaDB client based on CHROMA_MODE:
+    Create or return the cached singleton ChromaDB client based on CHROMA_MODE:
     - local (default): PersistentClient storing data permanently in 'chroma_db/'
     - http: HttpClient connecting to a live ChromaDB server (Render / Railway / VPS)
     - cloud: CloudClient connecting to managed Chroma Cloud (trychroma.com)
     """
     load_dotenv(override=True)
     mode = os.getenv("CHROMA_MODE", "local").strip().lower()
-
-    if mode == "http":
-        host = os.getenv("CHROMA_HOST", "localhost")
-        port = int(os.getenv("CHROMA_PORT", "8000"))
-        ssl = os.getenv("CHROMA_SSL", "false").strip().lower() == "true"
-        return chromadb.HttpClient(host=host, port=port, ssl=ssl)
-
-    if mode == "cloud":
-        return chromadb.CloudClient(
-            api_key=os.getenv("CHROMA_API_KEY"),
-            tenant=os.getenv("CHROMA_TENANT"),
-            database=os.getenv("CHROMA_DATABASE"),
-        )
-
     target_dir = persist_dir or os.getenv("CHROMA_PERSIST_DIR", DEFAULT_CHROMA_DIR)
-    os.makedirs(target_dir, exist_ok=True)
-    return chromadb.PersistentClient(path=target_dir)
+    host = os.getenv("CHROMA_HOST", "localhost")
+    port = int(os.getenv("CHROMA_PORT", "8000"))
+    ssl = os.getenv("CHROMA_SSL", "false").strip().lower() == "true"
+    api_key = os.getenv("CHROMA_API_KEY", "")
+    tenant = os.getenv("CHROMA_TENANT", "")
+    database = os.getenv("CHROMA_DATABASE", "")
+
+    with _CHROMA_CLIENT_LOCK:
+        return _cached_chroma_client(
+            mode=mode,
+            target_dir=target_dir,
+            host=host,
+            port=port,
+            ssl=ssl,
+            api_key=api_key,
+            tenant=tenant,
+            database=database,
+        )
 
 
 def get_chroma_vectorstore(
