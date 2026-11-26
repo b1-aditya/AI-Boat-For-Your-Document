@@ -8,9 +8,18 @@ chat history, and an expandable Sources & Page Numbers section.
 """
 
 import os
+import sys
 import tempfile
 import time
 from pathlib import Path
+
+# Patch sqlite3 with pysqlite3 on Linux (Streamlit Cloud) before importing ChromaDB
+try:
+    import pysqlite3
+
+    sys.modules["sqlite3"] = pysqlite3
+except ImportError:
+    pass
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -18,6 +27,7 @@ from google import genai
 from groq import Groq
 
 from ingest import (
+    build_bm25_from_vectorstore,
     build_vector_index,
     clear_chroma_index,
     get_chroma_stats,
@@ -125,6 +135,14 @@ def load_cached_reranker():
     return get_reranker()
 
 
+@st.cache_resource(show_spinner="Connecting to ChromaDB index...")
+def load_cached_vectorstore():
+    """Load and cache the ChromaDB vectorstore once per Streamlit server process."""
+    embeddings = load_cached_embeddings()
+    vectorstore, _ = load_vector_index(embeddings=embeddings)
+    return vectorstore
+
+
 def init_session_state():
     """Initialize chat history and load any existing ChromaDB + BM25 index automatically."""
     if "messages" not in st.session_state:
@@ -134,10 +152,9 @@ def init_session_state():
     if "last_ingest_notice" not in st.session_state:
         st.session_state.last_ingest_notice = None
     if "vectorstore" not in st.session_state or st.session_state.vectorstore is None:
-        embeddings = load_cached_embeddings()
-        vectorstore, bm25_data = load_vector_index(embeddings=embeddings)
+        vectorstore = load_cached_vectorstore()
         st.session_state.vectorstore = vectorstore
-        st.session_state.bm25_data = bm25_data
+        st.session_state.bm25_data = build_bm25_from_vectorstore(vectorstore)
 
 
 def auto_ingest_uploaded_files(uploaded_files) -> None:
@@ -271,6 +288,7 @@ def main():
             if st.button("Reset ChromaDB", use_container_width=True):
                 embeddings = load_cached_embeddings()
                 st.session_state.vectorstore = clear_chroma_index(embeddings=embeddings)
+                load_cached_vectorstore.clear()
                 st.session_state.bm25_data = (None, [])
                 st.session_state.indexed_file_signatures = set()
                 st.session_state.last_ingest_notice = None
